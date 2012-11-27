@@ -1,7 +1,11 @@
+/********************************************************/
+/*               FILEEXCHANGE-SERVER.CPP                */
+/*------------------------------------------------------*/
+/*  This file contains all the code for the server app  */
+/********************************************************/
 #include "../common.h"
 
-int main(int argc, char *argv[])
-{
+/*int main(int argc, char *argv[]){
 	//This section uses BIOs to write a copy of infile.txt to outfile.txt
 	//  and to send the hash of infile.txt to the command window.
 	//  It is a barebones implementation with little to no error checking.
@@ -65,4 +69,54 @@ int main(int argc, char *argv[])
 	BIO_free_all(hash);
 	
 	return 0;
+}*/
+
+void do_server_loop(BIO *conn){
+    int err, nread;
+    char buf[80];
+
+    do{
+        for(nread=0; nread<sizeof(buf); nread+=err){
+            err = BIO_read(conn, buf+nread, sizeof(buf)-nread);
+            if (err <= 0){
+                break;
+            }
+        }
+        
+        fwrite(buf, 1, nread, stdout);
+    }
+    while (err > 0);
+}
+
+int main(int argc, char *argv[]){
+    BIO *accept, *client;
+    char *serverPort = "6001";
+    
+    init_OpenSSL();
+    
+    accept = BIO_new_accept(serverPort);    // Create a socket that can accept connections
+    if(!accept){
+        printError("Error creating server socket. Exiting application.");
+        closeConn(accept, false);
+        return -1;
+    }
+    if(BIO_do_accept(accept) <= 0){         // Bind the socket to the port (serverPort)
+        printError("Error binding server socket. Exiting application.");
+        closeConn(accept, false);
+        return -1;
+    }
+    
+    cout << "Socket successfully binded to port " << serverPort << "! Waiting for incoming connection..." << endl;
+    if(BIO_do_accept(accept) <= 0){         // Block and wait until a connection is made
+        printError("Error accepting connection. Exiting application.");
+        closeConn(accept, false);
+        return -1;
+    }
+        
+    client = BIO_pop(accept);               // Get client BIO
+    cout << "Connection successfully opened!" << endl;
+    do_server_loop(client);
+    closeConn(client, true);
+    closeConn(accept, false);
+    return 0;
 }
