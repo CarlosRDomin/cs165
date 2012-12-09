@@ -3,6 +3,7 @@
 /*------------------------------------------------------*/
 /*  This file contains all the code for the client app  */
 /********************************************************/
+#include <openssl/bio.h>
 #include "../common.h"
 
 int main(int argc, char *argv[]){

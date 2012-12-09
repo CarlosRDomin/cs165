@@ -22,7 +22,7 @@ int main(int argc, char *argv[]){
 		printError("Usage: ./FileExchange-Server -port portnumber.", false);
 		exit(EXIT_FAILURE);
 	}
-    connAddr << "*:" << argv[2];
+    connAddr /*<< "*:" */<< argv[2];
     serverPort = (char*)connAddr.str().c_str();
     init_OpenSSL();
     
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]){
 	conn = BIO_new(BIO_s_accept());
 	BIO_set_accept_port(conn, serverPort);                      // Create a socket that can accept conections
 	if(BIO_do_accept(conn) <= 0){                               // Bind the socket to the port serverPort
-        printError("Error binding server socket. Exiting application.", true);
+        printError("Error binding server socket.", true);
         freeServerMem(dh, ctx, ssl, conn, hash, bioBuf, bRsaPrivKey, bFile, rsa);
 		exit(EXIT_FAILURE);
     }

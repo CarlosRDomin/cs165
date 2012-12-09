@@ -12,10 +12,11 @@
 #define BUFFER_SIZE         1024// Length (in bits) of the longest chunk I can send
 
 #include <iostream>
-#include <fstream>
-#include <stdlib.h>
-#include <string>
 #include <sstream>
+#include <string>
+#include <stdlib.h>
+using namespace std;
+
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/rsa.h>
@@ -25,7 +26,6 @@
 #include <openssl/evp.h>
 #include <openssl/dh.h>
 
-using namespace std;
 
 int seedPrng(int bytes){
     // This function seeds the PRNG. Returns the number of bytes read
@@ -34,9 +34,9 @@ int seedPrng(int bytes){
 
 void init_OpenSSL(){
     // This function initializes everything needed for a correct working of OpenSSL library
-    SSL_library_init();         // Load SSL libraries
     ERR_load_crypto_strings();  // Convert error codes to readable strings
     SSL_load_error_strings();
+    SSL_library_init();         // Load SSL libraries
     setbuf(stdout, NULL);       // Disable buffered output
     seedPrng(RND_LENGTH);       // Seed the PRNG
 }
@@ -92,12 +92,12 @@ void printError(const char *errMsg, bool checkErr){
     stringstream sAux;
     
     sAux << errMsg;
-    if(checkErrors){
+    if(checkErr){
         sAux << " More useful data about the failure:";
     }
     printErr((char*)sAux.str().c_str());
     
-    if(checkErrors){
+    if(checkErr){
         checkErrors();
     }
     puts("Exiting application.");
