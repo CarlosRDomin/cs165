@@ -16,12 +16,13 @@
 #include <stdlib.h>
 #include <string>
 #include <sstream>
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#include <openssl/ssl.h>
-#include <openssl/bio.h>
 #include <openssl/evp.h>
-#include <openssl/rsa.h>
 #include <openssl/dh.h>
 
 using namespace std;
@@ -40,38 +41,21 @@ void init_OpenSSL(){
     seedPrng(RND_LENGTH);       // Seed the PRNG
 }
 
-string buff2hex(unsigned char* buff, int len){
+string buff2hex(unsigned char *buff, int len){
     // This function returns the hex representation of the first len bytes of the buffer buff
-    unsigned int i;
-    stringstream s;
-
-    s << hex << setfill('0');
-    for(i=0; i<len; i++){
-        s << setw(2) << static_cast<unsigned>(buff[i]);
+    string s = "";
+    for(uint i = 0; i < len; i++)
+    {
+        char temp[EVP_MAX_MD_SIZE];
+        sprintf(temp, "%02x", buff[i] & 0xFF);
+        s += temp;
     }
-
-    return s.str();
+    return s;
 }
 
-void printErr(char *err){
+void printErr(const char *err){
     // This function prints the specified error string (all errors are printed with the same format)
     cout << "*** ERROR: " << err << endl;
-}
-
-void printError(char *errMsg, bool checkErr){
-    // This function prints the error message passed, and more useful data related to it if checkErr is true
-    stringstream sAux;
-    
-    sAux << errMsg;
-    if(checkErrors){
-        sAux << " More useful data about the failure:";
-    }
-    printError(sAux.str().c_str());
-    
-    if(checkErrors){
-        checkErrors();
-    }
-    puts("Exiting application.");
 }
 
 bool checkErrors(){
@@ -101,6 +85,22 @@ bool checkErrors(){
     }
     
     return areThereErrors;
+}
+
+void printError(const char *errMsg, bool checkErr){
+    // This function prints the error message passed, and more useful data related to it if checkErr is true
+    stringstream sAux;
+    
+    sAux << errMsg;
+    if(checkErrors){
+        sAux << " More useful data about the failure:";
+    }
+    printErr((char*)sAux.str().c_str());
+    
+    if(checkErrors){
+        checkErrors();
+    }
+    puts("Exiting application.");
 }
 
 void freeClientMem(SSL_CTX *ctx, SSL *ssl, BIO *conn, BIO *hash, BIO *bioBuf, BIO *bRsaPubKey, RSA *rsa){

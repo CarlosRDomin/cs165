@@ -5,90 +5,6 @@
 /********************************************************/
 #include "../common.h"
 
-/*int main(int argc, char *argv[]){
-	//This section uses BIOs to write a copy of infile.txt to outfile.txt
-	//  and to send the hash of infile.txt to the command window.
-	//  It is a barebones implementation with little to no error checking.
-    
-	//The SHA1 hash BIO is chained to the input BIO, though it could just
-	//  as easily be chained to the output BIO instead.
-    
-	const char *inFilename = "Ruiz.txt";
-	const char *outFilename = "DocOut.txt";
-	const char *rsaPrivKeyFilename = "rsaprivatekey.pem";
-	const char *rsaPrivKeyFilename = "rsapublickey.pem";
-	BIO *bInFile, *bOutFile, *hash;
-	BIO *bRsaPrivKey, *bRsaPrivKey;
-	RSA *rsaEnc, *rsaDec;
-	int lenDigest, lenSignedDigest, lenRecoveredDigest;
-	char digest[EVP_MAX_MD_SIZE];
-    unsigned char *signedDigest, *recoveredDigest;
-	char* buffer[1024];
-	int actualRead, actualWritten;
-    
-	bInFile = BIO_new_file(inFilename, "r");    // Create BIO for input file
-	bOutFile = BIO_new_file(outFilename, "w");  // Create BIO for output file
-	hash = BIO_new(BIO_f_md());                 // Create new hash
-	BIO_set_md(hash, EVP_sha1());
-	bRsaPrivKey = BIO_new_file(rsaPrivKeyFilename, "r");    // Create BIO to read RSA private key from file
-	bRsaPrivKey = BIO_new_file(rsaPrivKeyFilename, "r");      // Create BIO to read RSA public key from file
-	lenDigest = BIO_gets(hash, digest, EVP_MAX_MD_SIZE);    // Obtain a digest from the hash
-	BIO_push(hash, bInFile);                                //Chain on the input
-	rsaEnc = PEM_read_bio_RSAPrivateKey(bRsaPrivKey, NULL, NULL, NULL);
-    signedDigest = (unsigned char *)malloc(RSA_size(rsaEnc));
-	lenSignedDigest = RSA_private_encrypt(lenDigest, (unsigned char*)digest, signedDigest, rsaEnc, RSA_PKCS1_PADDING);
-    rsaDec = PEM_read_bio_RSA_PUBKEY(bRsaPrivKey, NULL, NULL, NULL);
-    recoveredDigest = (unsigned char *)malloc(RSA_size(rsaDec));
-    lenRecoveredDigest = RSA_public_decrypt(lenSignedDigest, signedDigest, recoveredDigest, rsaDec, RSA_PKCS1_PADDING);
-	
-	while((actualRead = BIO_read(hash, buffer, 1024)) >= 1){
-		actualWritten = BIO_write(bOutFile, buffer, actualRead);
-	}
-    
-	printf("Original digest:\t");
-	for(int i=0; i<lenDigest; i++){
-		printf("%02x", digest[i] & 0xFF);
-	}
-	printf("\n");
-    
-    printf("Signed digest:\t\t");
-	for(int i=0; i<lenSignedDigest; i++){
-		printf("%02x", signedDigest[i] & 0xFF);
-	}
-	printf("\n");
-    
-    printf("Recovered digest:\t");
-	for(int i=0; i<lenRecoveredDigest; i++){
-		printf("%02x", recoveredDigest[i] & 0xFF);
-	}
-	printf("\n");
-    
-    free(signedDigest);
-    free(recoveredDigest);
-	BIO_free_all(bOutFile);
-	BIO_free_all(hash);
-	
-	return 0;
-}*/
-
-void do_server_loop(SSL *conn){
-    int err, nread;
-    char buf[80];
-
-    do{
-        for(nread=0; nread<sizeof(buf); nread+=err){
-            err = SSL_read(conn, buf+nread, sizeof(buf)-nread);
-            if (err <= 0){
-                break;
-            }
-        }
-        
-        fwrite(buf, 1, nread, stdout);
-    }
-    while (err > 0);
-    return (SSL_get_shutdown(ssl) & SSL_RECEIVED_SHUTDOWN) ? 1:0;
-}
-
 int main(int argc, char *argv[]){
     DH* dh = NULL;
     SSL_CTX *ctx = NULL;
@@ -98,7 +14,7 @@ int main(int argc, char *argv[]){
     const char *rsaPrivKeyFilename = "ServerPrivateKey.pem", *errFile = "Error 404: File not found";
     char *serverPort, fileName[BUFFER_SIZE];
     stringstream connAddr;
-    int dh_err, lenRecEncChallenge, lenChallenge, lenHashChallenge, lenSignedChallenge, lenEncFileName, lenFileName, lenEncBuf;
+    int dh_err, lenRecEncChallenge, lenChallenge, lenHashChallenge, lenSignedChallenge, lenEncFileName, lenFileName, lenEncBuf, bytesRead;
     unsigned char encChallenge[BUFFER_SIZE], challenge[RND_LENGTH], hashChallenge[EVP_MAX_MD_SIZE], *signedChallenge, encFileName[BUFFER_SIZE];
     char buf[BUFFER_SIZE], *encBuf;
     
@@ -107,7 +23,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
 	}
     connAddr << "*:" << argv[2];
-    serverPort = connAddr.str().c_str();
+    serverPort = (char*)connAddr.str().c_str();
     init_OpenSSL();
     
     //-------------------------------------------------------------------------
@@ -202,7 +118,7 @@ int main(int argc, char *argv[]){
     }                                                           // And decrypt it
 	lenChallenge = RSA_private_decrypt(lenRecEncChallenge, encChallenge, challenge, rsa, RSA_PKCS1_PADDING);
     
-    cout << "\Received random challenge: " << buff2hex(challenge, RND_LENGTH) << "." << endl;
+    cout << "Received random challenge: " << buff2hex(challenge, RND_LENGTH) << "." << endl;
     
     //-------------------------------------------------------------------------
 	// 3. Hash the random challenge
@@ -220,7 +136,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
     
-    cout << "\tUnencrypted challenge hashed: " << buff2hex(hashChallenge, lenHashChallenge) << "." << endl;
+    cout << "Unencrypted challenge hashed: " << buff2hex(hashChallenge, lenHashChallenge) << "." << endl;
     
     //-------------------------------------------------------------------------
 	// 4. Sign the hash of the challenge
@@ -229,13 +145,13 @@ int main(int argc, char *argv[]){
     signedChallenge = (unsigned char*)malloc(RSA_size(rsa));    // Sign the digest of the random challenge with the private key
     lenSignedChallenge = RSA_private_encrypt(lenHashChallenge, hashChallenge, signedChallenge, rsa, RSA_PKCS1_PADDING);
     
-    cout << "\tDigest of the challenge signed: " << buff2hex(signedChallenge, lenSignedChallenge) << "." << endl;
+    cout << "Digest of the challenge signed: " << buff2hex(signedChallenge, lenSignedChallenge) << "." << endl;
     
     //-------------------------------------------------------------------------
 	// 5. Send the signed digest back
 	puts("5. Sending the signed digest of the challenge back to the client...");
     
-    BIO_flush();
+    BIO_flush(conn);
     if(SSL_write(ssl, signedChallenge, lenSignedChallenge) <= 0){// Send signed digest to the client
         printError("Unable to send the signed digest to the client.", true);
         free(signedChallenge);
@@ -244,7 +160,7 @@ int main(int argc, char *argv[]){
     }
     free(signedChallenge);
     
-    cout << "\tSigned challenge sent!" << endl;
+    cout << "Signed challenge sent!" << endl;
     
     //-------------------------------------------------------------------------
 	// 6. Receive file request from client
@@ -258,13 +174,13 @@ int main(int argc, char *argv[]){
     }                                                           // And decrypt it
 	lenFileName = RSA_private_decrypt(lenEncFileName, encFileName, (unsigned char*)fileName, rsa, RSA_PKCS1_PADDING);
     
-    cout << "\Received file request: " << fileName << "." << endl;
+    cout << "Received file request: " << fileName << "." << endl;
     
     //-------------------------------------------------------------------------
 	// 7. Send the file
 	puts("7. Sending the file to the client...");
     
-    BIO_flush();
+    BIO_flush(conn);
 	bFile = BIO_new_file(fileName, "r");                        // Create BIO for input file
     if(!bFile){
         printError("Unable to open local file (file not found).", true);
