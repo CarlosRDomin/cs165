@@ -3,8 +3,34 @@
 /*------------------------------------------------------*/
 /*  This file contains all the code for the client app  */
 /********************************************************/
-#include <openssl/bio.h>
 #include "../common.h"
+
+void freeClientMem(SSL_CTX *ctx, SSL *ssl, BIO *conn, BIO *hash, BIO *bioBuf, BIO *bRsaPubKey, RSA *rsa){
+    // This function frees all memory in use before exiting the application
+    if(ctx){
+        SSL_CTX_free(ctx);
+    }
+    if(ssl){
+        SSL_clear(ssl);
+        SSL_free(ssl);
+        conn = NULL;
+    }
+    if(conn){
+        BIO_free_all(conn);
+    }
+    if(hash){
+        BIO_free(hash);
+    }
+    if(bioBuf){
+        BIO_free(bioBuf);
+    }
+    if(bRsaPubKey){
+        BIO_free(bRsaPubKey);
+    }
+    if(rsa){
+        RSA_free(rsa);
+    }
+}
 
 int main(int argc, char *argv[]){
     SSL_CTX *ctx = NULL;
@@ -12,11 +38,11 @@ int main(int argc, char *argv[]){
     BIO *conn = NULL, *hash = NULL, *bioBuf = NULL, *bRsaPubKey = NULL, *bFile = NULL;
     RSA *rsa = NULL;
     const char *rsaPubKeyFilename = "ServerPublicKey.pem";
-    char *serverAddr, *serverPort, *fileName;
+    char *serverAddr, *serverPort, fileName[FILE_NAME_LENGTH];
     stringstream connAddr;
     int lenChallenge, lenEncChallenge, lenHashSentChallenge, lenRecChallenge, lenHashRecChallenge, lenEncFileName, bytesRead, lenDecBuf;
     unsigned char challenge[RND_LENGTH], *encChallenge, *encFileName;
-    char hashSentChallenge[EVP_MAX_MD_SIZE], recEncChallenge[BUFFER_SIZE], hashRecChallenge[EVP_MAX_MD_SIZE], buf[BUFFER_SIZE], *decBuf;
+    char hashSentChallenge[EVP_MAX_MD_SIZE+1], recEncChallenge[BUFFER_SIZE], hashRecChallenge[EVP_MAX_MD_SIZE+1], buf[BUFFER_SIZE], *decBuf;
     string hashSent, hashRec;
     
     if(argc < 6){
@@ -95,7 +121,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
 
-    cout << "Connection successfully opened! Now connected to " << serverAddr << " on port " << serverPort << "." << endl;
+    cout << "  Connection successfully opened! Now connected to " << serverAddr << " on port " << serverPort << "." << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 2. Generate a random number
@@ -108,7 +134,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
     
-    cout << "Random challenge successfully generated: " << buff2hex(challenge, lenChallenge) << "!" << endl;
+    cout << "  Random challenge successfully generated: " << buff2hex(challenge, lenChallenge) << "!" << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 3. Send encrypted challenge to the server 
@@ -125,7 +151,7 @@ int main(int argc, char *argv[]){
     }
     free(encChallenge);
     
-    cout << "Encrypted challenge sent: " << buff2hex(encChallenge, lenEncChallenge) << "." << endl;
+    cout << "  Encrypted challenge sent: " << buff2hex(encChallenge, lenEncChallenge) << "." << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 4. Hash unencrypted random challenge
@@ -136,6 +162,7 @@ int main(int argc, char *argv[]){
         freeClientMem(ctx, ssl, conn, hash, bioBuf, bRsaPubKey, rsa);
 		exit(EXIT_FAILURE);
     }
+    memset(hashSentChallenge, '\0', EVP_MAX_MD_SIZE+1);
     lenHashSentChallenge = BIO_read(hash, hashSentChallenge, EVP_MAX_MD_SIZE);
     if(lenHashSentChallenge <= 0){                              // Obtain a digest of the unencrypted random challenge
         printError("Error hashing the challenge.", true);
@@ -143,7 +170,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
     
-    cout << "Digest of the unencrypted challenge: " << buff2hex((unsigned char*)hashSentChallenge, lenHashSentChallenge) << "." << endl;
+    cout << "  Digest of the unencrypted challenge: " << buff2hex((unsigned char*)hashSentChallenge, lenHashSentChallenge) << "." << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 5. Receive signed hash from server and decrypt it
@@ -154,11 +181,12 @@ int main(int argc, char *argv[]){
         printError("Error receiving the random challenge signed from the server.", true);
         freeClientMem(ctx, ssl, conn, hash, bioBuf, bRsaPubKey, rsa);
 		exit(EXIT_FAILURE);
-    }                                                           // And decrypt it
-    cout << "Received signed challenge: " << buff2hex((unsigned char*)recEncChallenge, lenRecChallenge) << "." << endl;
+    }                                                           
+    cout << "  Received signed challenge: " << buff2hex((unsigned char*)recEncChallenge, lenRecChallenge) << "." << endl;
+    memset(hashRecChallenge, '\0', EVP_MAX_MD_SIZE+1);          // And decrypt it
 	lenHashRecChallenge = RSA_public_decrypt(lenRecChallenge, (unsigned char*)recEncChallenge, (unsigned char*)hashRecChallenge, rsa, RSA_PKCS1_PADDING);
     
-    cout << "Decrypted digest: " << buff2hex((unsigned char*)hashRecChallenge, lenHashRecChallenge) << "." << endl;
+    cout << "  Decrypted digest: " << buff2hex((unsigned char*)hashRecChallenge, lenHashRecChallenge) << "." << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 6. Verify server's identity
@@ -172,7 +200,7 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
     
-    cout << "The random challenge was successfully signed by the server!" << endl;
+    cout << "  The random challenge was successfully signed by the server!" << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 7. Request the file
@@ -189,7 +217,7 @@ int main(int argc, char *argv[]){
     }
     free(encFileName);
     
-    cout << "File request successfully sent: '" << fileName << "'." << endl;
+    cout << "  File request sent: '" << fileName << "'." << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 8. Receive and display the file
@@ -202,16 +230,17 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
     }
     
-    decBuf = (char*)malloc(RSA_size(rsa));
+    decBuf = (char*)malloc(RSA_size(rsa)+sizeof(char));
     while((bytesRead = SSL_read(ssl, buf, BUFFER_SIZE)) > 0){   // Read a chunk of BUFFER_SIZE bytes
-        lenDecBuf = RSA_public_decrypt(BUFFER_SIZE, (unsigned char*)buf, (unsigned char*)decBuf, rsa, RSA_PKCS1_PADDING);
+        lenDecBuf = RSA_public_decrypt(bytesRead, (unsigned char*)buf, (unsigned char*)decBuf, rsa, RSA_PKCS1_PADDING);
         BIO_write(bFile, decBuf, lenDecBuf);                    // Encrypt and write it in the output file
+        decBuf[lenDecBuf] = '\0';
         cout << decBuf;                                         // And display it also in the console
     }                                                           // Repeat until done
     free(decBuf);
 	BIO_free_all(bFile);
 
-    cout << endl << "Done! File trasnfer finished!" << endl;
+    cout << endl << "-- Done! File trasnfer finished! --" << endl << endl;
     
     //-------------------------------------------------------------------------
 	// 9. Close the connection
@@ -220,7 +249,7 @@ int main(int argc, char *argv[]){
     SSL_shutdown(ssl);                                          // Close the connection
     freeClientMem(ctx, ssl, conn, hash, bioBuf, bRsaPubKey, rsa);
     
-    cout << "Connection successfully closed. Goodbye!" << endl;
+    cout << "  Connection successfully closed. Goodbye!" << endl;
 
     return 0;
 }

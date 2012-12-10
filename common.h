@@ -7,8 +7,9 @@
 #define COMMON_H
 
 #define DEBUG               1   // Set to 0 to prevent from debugging messages being printed on the console
-#define RND_LENGTH          256 // Length (in bytes) of the random challenge
+#define RND_LENGTH          64  // Length (in bytes) of the random challenge
 #define FILE_NAME_LENGTH    256 // Length (in characters) of the longest filename
+#define FILE_BUFFER_SIZE    64 // Length (in characters) of the longest chunk I can read from a file
 #define BUFFER_SIZE         1024// Length (in bits) of the longest chunk I can send
 
 #include <iostream>
@@ -17,14 +18,14 @@
 #include <stdlib.h>
 using namespace std;
 
-#include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#include <openssl/evp.h>
 #include <openssl/dh.h>
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/evp.h>
 
 
 int seedPrng(int bytes){
@@ -101,64 +102,6 @@ void printError(const char *errMsg, bool checkErr){
         checkErrors();
     }
     puts("Exiting application.");
-}
-
-void freeClientMem(SSL_CTX *ctx, SSL *ssl, BIO *conn, BIO *hash, BIO *bioBuf, BIO *bRsaPubKey, RSA *rsa){
-    // This function frees all memory in use before exiting the application
-    if(ctx){
-        SSL_CTX_free(ctx);
-    }
-    if(ssl){
-        SSL_clear(ssl);
-        SSL_free(ssl);
-    }
-    if(conn){
-        BIO_free(conn);
-    }
-    if(hash){
-        BIO_free(hash);
-    }
-    if(bioBuf){
-        BIO_free(bioBuf);
-    }
-    if(bRsaPubKey){
-        BIO_free(bRsaPubKey);
-    }
-    if(rsa){
-        RSA_free(rsa);
-    }
-}
-
-void freeServerMem(DH *dh, SSL_CTX *ctx, SSL *ssl, BIO *conn, BIO *hash, BIO *bioBuf, BIO *bRsaPrivKey, BIO *bFile, RSA *rsa){
-    // This function frees all memory in use before exiting the application
-    if(dh){
-        DH_free(dh);
-    }
-    if(ctx){
-        SSL_CTX_free(ctx);
-    }
-    if(ssl){
-        SSL_clear(ssl);
-        SSL_free(ssl);
-    }
-    if(conn){
-        BIO_free(conn);
-    }
-    if(hash){
-        BIO_free(hash);
-    }
-    if(bioBuf){
-        BIO_free(bioBuf);
-    }
-    if(bRsaPrivKey){
-        BIO_free(bRsaPrivKey);
-    }
-    if(bFile){
-        BIO_free(bFile);
-    }
-    if(rsa){
-        RSA_free(rsa);
-    }
 }
 
 #endif
