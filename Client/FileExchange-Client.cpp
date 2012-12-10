@@ -223,24 +223,31 @@ int main(int argc, char *argv[]){
 	// 8. Receive and display the file
 	puts("8. Receiving the file from the server...");
     
-	bFile = BIO_new_file(fileName, "w");                        // Create BIO for output file
-    if(!bFile){
-        printError("Unable to create local file.", true);
-        freeClientMem(ctx, ssl, conn, hash, bioBuf, bRsaPubKey, rsa);
-		exit(EXIT_FAILURE);
-    }
-    
     decBuf = (char*)malloc(RSA_size(rsa)+sizeof(char));
-    while((bytesRead = SSL_read(ssl, buf, BUFFER_SIZE)) > 0){   // Read a chunk of BUFFER_SIZE bytes
-        lenDecBuf = RSA_public_decrypt(bytesRead, (unsigned char*)buf, (unsigned char*)decBuf, rsa, RSA_PKCS1_PADDING);
-        BIO_write(bFile, decBuf, lenDecBuf);                    // Encrypt and write it in the output file
-        decBuf[lenDecBuf] = '\0';
-        cout << decBuf;                                         // And display it also in the console
-    }                                                           // Repeat until done
-    free(decBuf);
-	BIO_free_all(bFile);
-
-    cout << endl << "-- Done! File trasnfer finished! --" << endl << endl;
+    bytesRead = SSL_read(ssl, buf, BUFFER_SIZE);                // First, receive acknowledgement
+    lenDecBuf = RSA_public_decrypt(bytesRead, (unsigned char*)buf, (unsigned char*)decBuf, rsa, RSA_PKCS1_PADDING);
+    if(string(decBuf).compare("ERROR") == 0){
+        free(decBuf);
+        cout << "  Error 404: File not found!" << endl << endl; // If file not found, print error message
+    }else{
+        bFile = BIO_new_file(fileName, "w");                    // Create BIO for output file
+        if(!bFile){
+            printError("Unable to create local file.", true);
+            free(decBuf);
+            freeClientMem(ctx, ssl, conn, hash, bioBuf, bRsaPubKey, rsa);
+            exit(EXIT_FAILURE);
+        }
+        
+        while((bytesRead = SSL_read(ssl, buf, BUFFER_SIZE)) > 0){//Read a chunk of BUFFER_SIZE bytes
+            lenDecBuf = RSA_public_decrypt(bytesRead, (unsigned char*)buf, (unsigned char*)decBuf, rsa, RSA_PKCS1_PADDING);
+            BIO_write(bFile, decBuf, lenDecBuf);                // Encrypt and write it in the output file
+            decBuf[lenDecBuf] = '\0';
+            cout << decBuf;                                     // And display it also in the console
+        }                                                       // Repeat until done
+        free(decBuf);
+        BIO_free_all(bFile);
+        cout << endl << endl << "-- Done! File trasnfer finished! --" << endl << endl;
+    }
     
     //-------------------------------------------------------------------------
 	// 9. Close the connection
